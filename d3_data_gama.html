@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Data Driven Documents</title>
+<style>
+    body {
+        font: 10px sans-serif;
+    }
+    svg{
+        display: block
+    }
+    select{
+        margin-left: 50px;
+    }
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+</style>
+<body>
+    <select id="selectSensorID" size="1">
+    </select>
+    <select id="selectMonth" size="1">
+    </select>
+</body>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script>
+        var id = 1;
+        var unit = "PM10";
+        var line;
+
+        var margin = {top: 20, right: 30, bottom: 30, left: 40},
+            width = 1200 - margin.left - margin.right,
+            height = 400 - margin.top - margin.bottom;
+
+        d3.json("https://gist.githubusercontent.com/datenanalysegamma/9771864e336b9ab241181a7726fe5a60/raw/74adca5673e87052d220ec9d6c166f15f84a9d07/daw2018", function(error, data) {
+
+            var svg = d3.select("body").append("svg")
+                .data(data)
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            var xScale = selectX_axisRange(0,svg); // select the range when document is loaded with january
+            var yScale = selectY_axisRange(data,1 ,id,svg); // select the range when document is loaded with 0 -> need to be extended
+
+            var g = svg.append("g")
+                .attr("transform","translate(50,0)");
+
+            /* listener when id should change*/
+            document.getElementById('selectSensorID').addEventListener('change', function() {
+
+                d3.selectAll("#lineId").remove();
+                d3.selectAll("#y_axis").remove();
+
+                // get the current month from the option field an change the y-axis based on the sensor max value
+                var e = document.getElementById('selectMonth');
+                var optionValue = e.options[e.selectedIndex].value;
+                month = optionValue.split(' '); // split because the month word is not necessary
+
+                id = this.value.split(' '); // split because the word "sensor" is not necessary
+                yScale = selectY_axisRange(data,month[0]-1, parseInt(id[1]),svg);
+
+                // draw lines when id is changed
+                drawLine(getRandomColor(),parseInt(id[1]),"PM10",xScale,yScale,g,data);
+                drawLine(getRandomColor(),parseInt(id[1]),"PM2.5",xScale,yScale,g,data);
+            });
+
+            /* listener when x-axis should change*/
+            document.getElementById('selectMonth').addEventListener('change', function() {
+                d3.selectAll("#x_axis").remove();
+                d3.selectAll("#y_axis").remove();
+                d3.selectAll("#lineId").remove();
+
+                // first set the new date range for the x-axis
+                month = this.value.split(' '); // split because the month word is not necessary
+
+                // get the current sensorid from the option field
+                var e = document.getElementById('selectSensorID');
+                var optionValue = e.options[e.selectedIndex].value;
+                id = optionValue.split(' '); // split because the month word is not necessary
+
+                xScale = selectX_axisRange(month[0]-1,svg);
+                yScale = selectY_axisRange(data,month[0]-1,parseInt(id[1]),svg);
+
+                // draw lines
+                drawLine(getRandomColor(),parseInt(id[1]),"PM10",xScale,yScale,g,data);
+                drawLine(getRandomColor(),parseInt(id[1]),"PM2.5",xScale,yScale,g,data);
+
+            });
+
+            /*
+            * when document is loaded show the first lines and the get the sensor/date data
+            * */
+            selectSensorID(data);
+            selectMonth(data);
+            drawLine(getRandomColor(),1,"PM10",xScale,yScale,g,data); // draw the first line when document is loaded
+            drawLine(getRandomColor(),1,"PM2.5",xScale,yScale,g,data); // draw the first line when document is loaded
+
+        });
+
+        /* draw a single line depending on id, unit and data*/
+        function drawLine(color,sensordid,unit,xScale,yScale,g,data){
+
+            var data_array = [];
+            var x = 0;
+            data.forEach(function(dataset){
+                if(dataset.sensorid === sensordid && dataset.unit === unit){
+                    data_array[x] = [new Date(dataset.timestamp),dataset.value];
+                    x++;
+                }
+            });
+
+            line = d3.line()
+                .x(function(d) {
+                    var date = new Date(d[0]);
+                    return xScale(date)
+                })
+                .y(function(d) {
+                    return yScale(d[1])
+                });
+
+            g.append("path")
+                .datum(data_array)
+                .attr("id","lineId")
+                .attr("fill","none")
+                .attr("stroke",color)
+                .attr("stroke-width",1.5)
+                .attr("d",line);
+
+            return line;
+        }
+
+        /* to get all sensorid´s just once*/
+        function selectSensorID(data) {
+            var x = document.getElementById("selectSensorID");
+            var old_sensorid = 0;
+            data.forEach(function(dataset){
+                if(old_sensorid != dataset.sensorid){
+                    var option = document.createElement("option");
+                    option.text = "Sensor "+dataset.sensorid;
+                    x.add(option, option.text);
+                    old_sensorid = dataset.sensorid
+                }
+            });
+        }
+
+        /* to get all months from the data 1-12 is Jan-Decs*/
+        function selectMonth(data) {
+            var x = document.getElementById("selectMonth");
+            var old_string = [];
+            var i = 0;
+
+            data.forEach(function(dataset){
+                if(!old_string.includes(dataset.month)){
+                    var option = document.createElement("option");
+                    old_string[i] = dataset.month;
+
+                    // just to switch the text in the option field
+                    var monat;
+                    switch (dataset.month) {
+                        case 1:
+                            monat = "1 Januar";
+                            break;
+                        case 2:
+                            monat = "2 Februar";
+                            break;
+                        case 3:
+                            monat = "3 März";
+                            break;
+                        case 4:
+                            monat = "4 April";
+                            break;
+                        case 5:
+                            monat = "5 Mai";
+                            break;
+                        case 6:
+                            monat = "6 Juni";
+                            break;
+                        case 7:
+                            monat = "7 Juli";
+                            break;
+                        case 8:
+                            monat = "8 August";
+                            break;
+                        case 9:
+                            monat = "9 September";
+                            break;
+                        case 10:
+                            monat = "10 Oktober";
+                            break;
+                        case 11:
+                            monat = "11 November";
+                            break;
+                        case 12:
+                            monat = "12 Dezember";
+                            break;
+                    }
+
+                    option.text = monat;
+                    x.add(option, option.text);
+                    i++
+                }
+            });
+
+
+        }
+
+        /*get x-axis range by month*/
+        function selectX_axisRange(month,svg){
+            var xScale = d3.scaleTime()
+                .domain([new Date(2018,month,1), new Date(2018,month+1,1)])
+                .range([0,width]);
+
+            var x_axis = d3.axisBottom()
+                .scale(xScale);
+
+            svg.append("g")
+                .attr("transform", "translate("+50+"," + height + ")")
+                .attr("id","x_axis")
+                .call(x_axis);
+
+            return xScale;
+        }
+
+        function selectY_axisRange(data,month,id,svg){
+
+            //get highest value
+            var highValue = 0;
+            data.forEach(function(dataset){
+                if(dataset.month === month+1 && dataset.value > highValue && dataset.sensorid === id){
+                    console.log("Test");
+                    highValue = dataset.value;
+                }
+            });
+
+            var yScale = d3.scaleLinear()
+                .domain([0, highValue])
+                .range([height,0]);
+
+            var y_axis = d3.axisLeft()
+                .scale(yScale);
+
+            svg.append("g")
+                .attr("transform", "translate(" +50 + ",0)")
+                .attr("id","y_axis")
+                .call(y_axis);
+
+            return yScale;
+        }
+
+        /*choose random colors for the lines*/
+        function getRandomColor() {
+            var letters = '0123456789ABCDEF';
+            var color = '#';
+            for (var i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+    </script>
+</html>
